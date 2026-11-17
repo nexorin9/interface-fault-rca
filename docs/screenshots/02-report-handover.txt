@@ -1,0 +1,15 @@
+════════════════════════════════════════════════════════════════
+ 截图 2 · 交班摘要导出（report）—— 给主管能直接念的一段话
+ 采集时间: 2026-11-17 19:26:28 +0800 | 环境: macOS / release 二进制
+════════════════════════════════════════════════════════════════
+
+$ ./target/release/interface-fault-rca report --window 2026-11-09T02:00:00+08:00/2026-11-09T02:30:00+08:00
+
+交班摘要（窗口 1794160800000 至 1794162600000）
+模型不可达，以下为规则基线结论。
+昨夜先变慢的接口 Top-2：
+  1. ESB-ORDER-CREATE（住院医嘱开立服务）：判定 接口自身劣化，置信度 0.85，证据行 flow#a0041, flow#a0045, flow#a0049, flow#a0053, flow#a0057, flow#a0061, flow#a0065, flow#a0069, flow#a0073, flow#a0077。
+  2. EXT-HIS-PATIENT-BASE（院外 HIS 患者主索引服务）：判定 接口自身劣化，置信度 0.81，证据行 flow#a0043, flow#a0047, flow#a0051, flow#a0055, flow#a0059, flow#a0063, flow#a0067, flow#a0071, flow#a0075, flow#a0079。
+待确认 2 条（尚未建单）：EXT-HIS-PATIENT-BASE, ESB-ORDER-CREATE
+
+已导出交班摘要: docs/handover.txt / docs/handover.md

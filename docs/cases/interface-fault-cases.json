@@ -1,0 +1,238 @@
+{
+  "meta": {
+    "name": "接口故障根因定位自建案例集",
+    "purpose": "Phase 6 domain_correctness 的可核对落点，同时是 golden 对拍与对照实验的评测集",
+    "note": "所有标识均为占位或类目写法，不含拟真批次号/就诊流水号/处方标识/患者化名；涉及频次与比例的数字均标经验推断或留空",
+    "case_count": 14
+  },
+  "cases": [
+    {
+      "case_id": "CASE-001",
+      "input": {
+        "shape": "step",
+        "interface_code": "ESB-ORDER-CREATE",
+        "source_hint": "data/scale/flow-events.jsonl 中 ESB-ORDER-CREATE 后半窗",
+        "baseline_p95_ms": 100,
+        "current_p95_ms": 350
+      },
+      "expect": {
+        "verdict": "接口自身劣化",
+        "change_shape": "阶梯劣化",
+        "evidence_refs_pattern": "flow#*",
+        "min_evidence_refs": 1
+      },
+      "basis": "院内 ESB 接口登记表口径 + spec.md §5 四形态变更点定义；劣化倍数为经验推断",
+      "confidence": 0.9
+    },
+    {
+      "case_id": "CASE-002",
+      "input": {
+        "shape": "spike",
+        "interface_code": "ESB-REPORT-QUERY",
+        "source_hint": "data/scale/flow-events.jsonl 中 ESB-REPORT-QUERY 单点尖刺",
+        "baseline_p95_ms": 100,
+        "current_max_ms": 5000
+      },
+      "expect": {
+        "verdict": "接口自身劣化",
+        "change_shape": "尖刺",
+        "evidence_refs_pattern": "flow#*",
+        "min_evidence_refs": 1
+      },
+      "basis": "spec.md §5 尖刺形态：单点极高但中位数稳定；倍数为经验推断",
+      "confidence": 0.85
+    },
+    {
+      "case_id": "CASE-003",
+      "input": {
+        "shape": "ramp",
+        "interface_code": "EXT-HIS-PATIENT-BASE",
+        "source_hint": "data/scale/flow-events.jsonl 中院外接口缓慢爬升",
+        "baseline_p95_ms": 140,
+        "current_end_ms": 490
+      },
+      "expect": {
+        "verdict": "下游依赖饱和",
+        "change_shape": "缓慢爬升",
+        "evidence_refs_pattern": "flow#*",
+        "min_evidence_refs": 1
+      },
+      "basis": "spec.md §5 缓慢爬升形态；院外依赖推断依据接口登记表厂商字段；数值为经验推断",
+      "confidence": 0.75
+    },
+    {
+      "case_id": "CASE-004",
+      "input": {
+        "shape": "jitter",
+        "interface_code": "ESB-ORDER-CREATE",
+        "source_hint": "基线窗口自身剧烈抖动",
+        "baseline_cv": 1.5
+      },
+      "expect": {
+        "verdict": "证据不足",
+        "change_shape": "基线抖动",
+        "min_evidence_refs": 0
+      },
+      "basis": "spec.md §5 基线退化：基线自身方差过大时判证据不足，不输出候选；CV 阈值为经验推断",
+      "confidence": 0.8
+    },
+    {
+      "case_id": "CASE-005",
+      "input": {
+        "shape": "ambiguous",
+        "interface_code": "ESB-AMBIG",
+        "source_hint": "一码映射多服务的字典条目",
+        "candidate_services": ["服务一", "服务二"]
+      },
+      "expect": {
+        "verdict": "证据不足",
+        "error_code": "AmbiguousInterface",
+        "excluded_from_candidates": true
+      },
+      "basis": "spec.md §4 歧义必须拒绝归因；依据字典一码多服务判定，非真实规范条款",
+      "confidence": 0.95
+    },
+    {
+      "case_id": "CASE-006",
+      "input": {
+        "shape": "unbound",
+        "interface_code": "UNMAPPED-CODE-X",
+        "source_hint": "字典查不到的接口码原值"
+      },
+      "expect": {
+        "verdict": "证据不足",
+        "binding": "unbound",
+        "excluded_from_candidates": true
+      },
+      "basis": "spec.md §4 未映射值标 unbound 不进候选；依据字典 retain 策略",
+      "confidence": 0.9
+    },
+    {
+      "case_id": "CASE-007",
+      "input": {
+        "shape": "insufficient_evidence",
+        "interface_code": "ESB-REPORT-QUERY",
+        "source_hint": "候选无任何合法证据行引用",
+        "evidence_refs": []
+      },
+      "expect": {
+        "verdict": "证据不足",
+        "gate_action": "drop_whole_candidate",
+        "reason_code": "EVIDENCE_MISSING"
+      },
+      "basis": "task 41 证据守门：无证据引用整条丢弃；依据证据充分性下限配置",
+      "confidence": 0.95
+    },
+    {
+      "case_id": "CASE-008",
+      "input": {
+        "shape": "vendor_return_change",
+        "interface_code": "EXT-HIS-PATIENT-BASE",
+        "source_hint": "厂商接口返回码由 200 变为 5xx",
+        "response_codes": [200, 500]
+      },
+      "expect": {
+        "verdict": "厂商返回异常",
+        "evidence_refs_pattern": "flow#*",
+        "min_evidence_refs": 1
+      },
+      "basis": "spec.md §5 verdict 枚举「厂商返回异常」；依据日志与流水返回码变化，数值为经验推断",
+      "confidence": 0.8
+    },
+    {
+      "case_id": "CASE-009",
+      "input": {
+        "shape": "downstream_saturation",
+        "interface_code": "ESB-ORDER-CREATE",
+        "source_hint": "本接口延迟正常但下游线程池排队指标偏离",
+        "host_deviation": true
+      },
+      "expect": {
+        "verdict": "下游依赖饱和",
+        "evidence_refs_pattern": "metric#*",
+        "min_evidence_refs": 1
+      },
+      "basis": "spec.md §5 verdict 枚举「下游依赖饱和」；依据主机指标偏离，具体阈值为经验推断",
+      "confidence": 0.7
+    },
+    {
+      "case_id": "CASE-010",
+      "input": {
+        "shape": "call_volume_surge",
+        "interface_code": "ESB-REPORT-QUERY",
+        "source_hint": "调用量突增但单请求延迟正常",
+        "call_count_delta": 3.0
+      },
+      "expect": {
+        "verdict": "调用量突增",
+        "evidence_refs_pattern": "flow#*",
+        "min_evidence_refs": 1
+      },
+      "basis": "spec.md §5 verdict 枚举「调用量突增」；倍数 3.0 为经验推断",
+      "confidence": 0.7
+    },
+    {
+      "case_id": "CASE-011",
+      "input": {
+        "shape": "nonexistent_ref",
+        "interface_code": "ESB-ORDER-CREATE",
+        "source_hint": "模型返回不存在的证据行 ID",
+        "evidence_refs": ["flow#ghost"]
+      },
+      "expect": {
+        "gate_action": "drop_whole_candidate",
+        "reason_code": "NONEXISTENT_REF"
+      },
+      "basis": "task 41 三条丢弃路径之一：引用不存在的行 ID 整条丢弃",
+      "confidence": 0.95
+    },
+    {
+      "case_id": "CASE-012",
+      "input": {
+        "shape": "outside_window_ref",
+        "interface_code": "ESB-ORDER-CREATE",
+        "source_hint": "模型返回窗口外的证据行 ID",
+        "evidence_refs": ["flow#outside"]
+      },
+      "expect": {
+        "gate_action": "drop_whole_candidate",
+        "reason_code": "OUTSIDE_WINDOW"
+      },
+      "basis": "task 41 三条丢弃路径之一：引用窗口外的行 ID 整条丢弃",
+      "confidence": 0.95
+    },
+    {
+      "case_id": "CASE-013",
+      "input": {
+        "shape": "unbound_ref",
+        "interface_code": "ESB-ORDER-CREATE",
+        "source_hint": "模型返回未映射实体的证据行 ID",
+        "evidence_refs": ["log#unbound"]
+      },
+      "expect": {
+        "gate_action": "drop_whole_candidate",
+        "reason_code": "UNBOUND_REF"
+      },
+      "basis": "task 41 三条丢弃路径之一：引用未映射实体的行整条丢弃",
+      "confidence": 0.95
+    },
+    {
+      "case_id": "CASE-014",
+      "input": {
+        "shape": "degraded_baseline",
+        "interface_code": "ESB-REPORT-QUERY",
+        "source_hint": "模型不可达，走确定性基线",
+        "model_available": false
+      },
+      "expect": {
+        "verdict": "接口自身劣化",
+        "degraded": true,
+        "capped_status": "candidate_ranked",
+        "evidence_refs_pattern": "flow#*",
+        "min_evidence_refs": 1
+      },
+      "basis": "spec.md §5 模型不可达走基线并置 degraded；task 10 状态只到 candidate_ranked",
+      "confidence": 0.9
+    }
+  ]
+}

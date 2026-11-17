@@ -1,0 +1,39 @@
+════════════════════════════════════════════════════════════════
+ 截图 1 · 主路径判定（diagnose）—— 夜班接口告警后的一条命令
+ 采集时间: 2026-11-17 19:26:28 +0800 | 环境: macOS / release 二进制
+════════════════════════════════════════════════════════════════
+
+$ ./target/release/interface-fault-rca diagnose \
+    --window 2026-11-09T02:00:00+08:00/2026-11-09T02:30:00+08:00 \
+    --input fixtures/night \
+    --dict  config/interface-dict.toml \
+    --out   out/diagnose-2026-11-09-night.json
+
+=== 接口故障根因定位 · diagnose ===
+窗口: 2026-11-09 02:00:00+0800 ~ 2026-11-09 02:30:00+0800
+基线窗口: 前 30 分钟（2026-11-09 01:30:00+0800 ~ 2026-11-09 02:00:00+0800）
+字典版本: v1｜输入: fixtures/night｜原始行 118 → 事件表 118 行（窗口 68 / 基线 50）
+  来源 app_log（log）：尝试 8 / 入库 8 / 拒绝 0 / 脏行 0
+  来源 esb_audit（flow）：尝试 80 / 入库 80 / 拒绝 0 / 脏行 0
+  来源 prom（metric）：尝试 30 / 入库 30 / 拒绝 0 / 脏行 0
+候选 Top-2（按综合得分排序：延迟绝对值 0.20 + 劣化倍数 0.11 + 错误率 0.06）：
+  1. EXT-HIS-PATIENT-BASE | 接口自身劣化 | 劣化 3.05 倍 | P95 672ms（基线 220ms） | 得分 0.369 | 形态 阶梯劣化 | 状态 candidate_ranked
+     依据: P95 672ms / 基线 220ms = 3.05倍
+     证据行: flow#a0043, flow#a0047, flow#a0051, flow#a0055, flow#a0059, flow#a0063, flow#a0067, flow#a0071, flow#a0075, flow#a0079
+     原文摘要: flow#a0043 @1794160800000 EXT-HIS-PATIENT-BASE [rc=200 dur=610ms]
+  2. ESB-ORDER-CREATE | 接口自身劣化 | 劣化 3.50 倍 | P95 368ms（基线 105ms） | 得分 0.273 | 形态 阶梯劣化 | 状态 candidate_ranked
+     依据: P95 368ms / 基线 105ms = 3.50倍
+     证据行: flow#a0041, flow#a0045, flow#a0049, flow#a0053, flow#a0057, flow#a0061, flow#a0065, flow#a0069, flow#a0073, flow#a0077
+     原文摘要: flow#a0041 @1794160800000 ESB-ORDER-CREATE [rc=200 dur=340ms]
+未进候选 2 条（附原因码，可回查）：
+  - ESB-SETTLE-UPLOAD | 证据不足 | VERDICT_INSUFFICIENT
+  - ESB-REPORT-QUERY | 证据不足 | VERDICT_INSUFFICIENT
+错误日志模板 Top-5：
+  - 3 次 | 首现 2026-11-09 02:01:00+0800 | upstream order-service call timed out after <N>ms
+  - 2 次 | 首现 2026-11-09 02:03:00+0800 | vendor returned <N> from patient index endpoint
+  - 1 次 | 首现 2026-11-09 02:05:00+0800 | connection pool exhausted for order-service
+  - 1 次 | 首现 2026-11-09 02:02:00+0800 | 结算清单上传被拒：质控校验不通过（主诊断唯一性）
+  - 1 次 | 首现 2026-11-09 02:05:00+0800 | 结算清单上传被拒：质控校验不通过（离院方式联动）
+【模型未配置或不可用】，以下为规则基线结论
+台账：候选 2 条，本次新增 0 条（status=candidate_ranked；未建单、无出站请求）
+报告已落盘: out/diagnose-2026-11-09-night.json

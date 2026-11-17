@@ -1,0 +1,103 @@
+# 接口故障根因定位 —— 接口实体绑定字典
+#
+# 权威口径：院内 ESB 侧「接口登记表」。三路来源（接口流水 / 错误日志 / 指标端点）
+# 对同一个接口的写法常常不一致，由本字典归一。
+#
+# 两条硬纪律：
+#   1. 一个接口码映射到多个服务 = **歧义**，程序报 AmbiguousInterface 并拒绝归因
+#      （宁可少给结论，不可错连）。
+#   2. 字典里查不到的值 = 未映射，保留原样并标 unbound，不进候选排序、不进证据白名单。
+#
+# 字典带版本号；运行时改了字典，历史结论仍保留它**当时**所用的版本，可回查。
+
+[dictionary]
+version = "v1"
+# 生效时间（用于审计回查）
+effective_at = "2026-11-09"
+# 权威来源说明：接口登记表由谁维护、从哪里同步
+authority = "院内 ESB 接口登记表（信息科维护）"
+# 未映射值的处理：retain = 保留原样并标 unbound
+unmapped_policy = "retain"
+
+# ── 接口条目 ──────────────────────────────────────────────────────────────────
+# aliases：各来源里出现过的写法（精确匹配优先，其次别名表）
+[[interface]]
+code = "ESB-ORDER-CREATE"
+service_name = "住院医嘱开立服务"
+vendor_name = "院内自研"
+hosts = ["esb-gw-01", "esb-gw-02"]
+aliases = ["ORDER_CREATE", "order.create", "住院医嘱开立", "esb_order_create"]
+# 登记来源说明：这条为什么是权威
+basis = "ESB 接口登记表：住院医嘱开立"
+
+[[interface]]
+code = "ESB-REPORT-QUERY"
+service_name = "检验报告查询服务"
+vendor_name = "院内自研"
+hosts = ["esb-gw-01"]
+aliases = ["REPORT_QUERY", "report.query", "检验报告查询"]
+basis = "ESB 接口登记表：检验报告查询"
+
+[[interface]]
+code = "EXT-HIS-PATIENT-BASE"
+service_name = "院外 HIS 患者主索引服务"
+vendor_name = "外部厂商 A"
+hosts = ["ext-his-adapter-01"]
+aliases = ["HIS_PATIENT_BASE", "his.patient.base", "患者主索引"]
+basis = "ESB 接口登记表：院外 HIS 患者主索引"
+
+# ── 承载「强制业务判定」的接口 ────────────────────────────────────────────────
+# 这几条不是可有可无的查询接口：它们承载审方、结算质控、费用审核、分组回传，
+# 规范要求「未经审核通过不得收费调配」「清单是医保结算唯一依据」，
+# 因此它们劣化会直接卡住院内业务，值班处置顺序与普通查询接口不同。
+[[interface]]
+code = "ESB-RX-REVIEW"
+service_name = "处方审核提交接口"
+vendor_name = "厂商 B"
+hosts = ["rx-adapter-01"]
+aliases = ["RX_REVIEW", "rx.review", "处方审核"]
+basis = "《医疗机构处方审核规范》（国卫办医发〔2018〕14号）：所有处方经审核通过后方可进入划价收费和调配环节，未经审核通过不得收费调配 → 审方接口是收费前的强制关口"
+
+[[interface]]
+code = "ESB-SETTLE-UPLOAD"
+service_name = "医保结算清单上传接口"
+vendor_name = "院内自研"
+hosts = ["esb-gw-02"]
+aliases = ["SETTLE_UPLOAD", "settle.upload", "结算清单上传"]
+basis = "《医疗保障基金结算清单填写规范》（国家医保局）：清单是医保结算唯一依据，DRG/DIP 分组全部基于清单而非首页 → 上传接口是结算必经关口"
+
+[[interface]]
+code = "ESB-FEE-AUDIT"
+service_name = "费用智能审核回传接口"
+vendor_name = "厂商 C"
+hosts = ["fee-adapter-01"]
+aliases = ["FEE_AUDIT", "fee.audit", "费用审核"]
+basis = "《医疗保障基金使用监督管理条例》（国务院令第735号）第38条：违规费用须由审核系统逐条判定并可追溯 → 回传接口是违规拦截的执行链路"
+
+[[interface]]
+code = "ESB-CASE-GROUP"
+service_name = "病案分组结果回传接口"
+vendor_name = "厂商 D"
+hosts = ["group-adapter-01"]
+aliases = ["CASE_GROUP", "case.group", "分组回传"]
+basis = "《CHS-DRG分组方案》（医保办发〔2019〕36号）：DRG/DIP 分组以住院病案首页与结算清单为依据，分组结果须回传医保办 → 回传接口决定当日入组与付费"
+
+# ── 指标端点标签 → 主机 ──────────────────────────────────────────────────────
+# 指标端点的 job / instance 标签按本表映射到 host；映射不到时 host 允许缺失（不报错）。
+[[label_binding]]
+source = "prom"
+label = "job"
+value = "esb-gateway"
+host = "esb-gw-01"
+
+[[label_binding]]
+source = "prom"
+label = "job"
+value = "order-service"
+host = "order-svc-01"
+
+[[label_binding]]
+source = "prom"
+label = "instance"
+value = "esb-gw-02:9100"
+host = "esb-gw-02"

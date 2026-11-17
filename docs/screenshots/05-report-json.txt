@@ -1,0 +1,16 @@
+════════════════════════════════════════════════════════════════
+ 截图 5 · 落盘产物核对（真实 JSON 报告片段 + version）
+ 采集时间: 2026-11-17 19:26:20 +0800 | 环境: macOS / release 二进制
+════════════════════════════════════════════════════════════════
+
+$ ./target/release/interface-fault-rca version
+interface-fault-rca 0.1.0
+
+$ python3 -c '...' # 读取真实落盘报告 out/diagnose-2026-11-09-night.json
+window_start_ms : 1794160800000
+degraded        : True
+degrade_reason  : 模型未配置或不可用
+candidates      : 2
+  - EXT-HIS-PATIENT-BASE | 接口自身劣化 | degrade 3.05 | refs 10
+  - ESB-ORDER-CREATE | 接口自身劣化 | degrade 3.5 | refs 10
+dropped         : 2

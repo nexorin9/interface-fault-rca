@@ -1,0 +1,56 @@
+[package]
+name = "interface-fault-rca"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "接口故障根因定位 —— 装在信息科值班机上的桌面常驻程序，把接口流水、主机指标与错误日志统一成一张运行事件表，跨源定位「昨夜是哪条接口先坏的」。"
+license = "MIT"
+readme = "README.md"
+publish = false
+
+[[bin]]
+name = "interface-fault-rca"
+path = "src/main.rs"
+
+[dependencies]
+# 异步运行时（双 runtime：采集通道 / 交互与模型通道）
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "time", "sync", "signal"] }
+
+# HTTP 客户端：指标端点拉取 + 运维工单出站写入 + 模型端点
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "charset", "http2", "blocking"] }
+
+# 院内 ESB 接口流水库（MySQL wire，只读账号）
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "mysql", "chrono", "macros"] }
+
+# 本地列式存储：统一运行事件表
+arrow = "59"
+parquet = "59"
+
+# 本地索引与状态：采集游标 / 物化表 / 结论台账 / 审计链
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# 序列化
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# 桌面界面（主窗口）与系统托盘
+egui = "0.29"
+eframe = { version = "0.29", default-features = false, features = ["default_fonts", "glow"] }
+tray-icon = "0.19"
+
+# 错误、间、哈希
+thiserror = "2"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+sha2 = "0.10"
+hex = "0.4"
+encoding_rs = "0.8"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true

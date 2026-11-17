@@ -1,0 +1,101 @@
+# 接口故障根因定位 —— 摄取管线定义
+#
+# 每条来源一条具名、带版本的管线。**列名不硬编码在代码里**，来源列 → 规范字段的
+# 映射全部写在本文件中；换一张来源表只改这里，不改代码。
+# 管线版本号会写进每一行的审计元数据，因此「同一批数据在不同版本下的产出」可区分、可比对。
+#
+# 字段规范（规范字段名见 spec.md §3.1）：
+#   tags  白名单六键：source / event_kind / interface_code / service_name / vendor_name / host
+#   ts_ms 统一到毫秒；归一前的原值随行留痕
+#   fields 按 event_kind 分支：flow / log / metric
+
+[defaults]
+# 未在映射表里出现的来源列，统一落进 fields 并标 unmapped（计数可回查）
+unmapped_field_key = "unmapped"
+# 单行长度上限（字节）；超出截断并标 truncated
+max_line_bytes = 65536
+# 脏行（解析失败）计入采集统计，不静默丢弃
+count_dirty_lines = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ① ESB 接口调用流水库（MySQL wire，只读）
+# ─────────────────────────────────────────────────────────────────────────────
+[[pipeline]]
+name = "esb_audit"
+version = "v1"
+source = "esb_audit"
+event_kind = "flow"
+# 水位键：按请求时间推进，配合 __tsid 幂等键保证重放不重复入库
+watermark = "request_time"
+batch_size = 5000
+
+  [pipeline.mapping]
+  # 来源列名 → 规范字段。required = true 的列缺失即报 SchemaMismatch，整批不入库。
+  interface_code = { column = "interface_code", required = true }
+  service_name  = { column = "service_name",  required = true }
+  vendor_name   = { column = "vendor_name",   required = false }
+  host          = { column = "host",          required = false }
+  ts_ms         = { column = "request_time",  required = true, type = "datetime3" }
+  response_code = { column = "response_code", required = true, type = "int" }
+  duration_ms   = { column = "duration_ms",   required = true, type = "int" }
+  caller_system = { column = "caller_system", required = false }
+  # trace_id 首版不取，保留位置但不入事件表
+
+  [pipeline.mapping.fields]
+  response_code = "response_code"
+  duration_ms   = "duration_ms"
+  caller_system = "caller_system"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ② 主机与中间件指标（Prometheus HTTP 只读）
+# ─────────────────────────────────────────────────────────────────────────────
+[[pipeline]]
+name = "prom"
+version = "v1"
+source = "prom"
+event_kind = "metric"
+watermark = "query_range_window"
+# 响应体体积上限：超出显式报错，不静默截断
+max_response_bytes = 33554432
+# 单次拉取序列条数上限
+max_series = 5000
+
+  [pipeline.mapping]
+  # 指标标签 → 规范字段；host 由字典按 job/instance 映射，映射不到允许缺失
+  ts_ms        = { column = "__ts",        required = true, type = "unix_second" }
+  metric_name = { column = "__name",       required = true }
+  value       = { column = "__value",      required = true, type = "float" }
+  interface_code = { column = "interface_code", required = false }
+
+  [pipeline.mapping.fields]
+  metric_name = "metric_name"
+  value       = "value"
+  labels      = "labels"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ③ 应用与网关错误日志目录（只读，增量 tail）
+# ─────────────────────────────────────────────────────────────────────────────
+[[pipeline]]
+name = "app_log"
+version = "v1"
+source = "app_log"
+event_kind = "log"
+watermark = "path_size_mtime"
+# 目录与文件匹配
+patterns = ["*.log", "*.jsonl"]
+# 时间戳写法别名：秒 / 毫秒 / ISO8601，三种都归一到 ts_ms
+timestamp_aliases = ["unix_second", "unix_millisecond", "iso8601"]
+# 编码：UTF-8 优先，失败按 GBK 回退，仍失败以替换字符保留而非丢弃
+encodings = ["utf-8", "gbk"]
+
+  [pipeline.mapping]
+  ts_ms       = { column = "timestamp", required = true }
+  level       = { column = "level",     required = false }
+  message     = { column = "message",   required = true }
+  stack_head  = { column = "stack_head", required = false }
+  interface_code = { column = "interface_code", required = false }
+
+  [pipeline.mapping.fields]
+  level      = "level"
+  message    = "message"
+  stack_head = "stack_head"

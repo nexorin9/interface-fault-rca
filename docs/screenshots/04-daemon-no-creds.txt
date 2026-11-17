@@ -1,0 +1,9 @@
+════════════════════════════════════════════════════════════════
+ 截图 4 · 常驻模式启动门禁（daemon）—— 缺凭据即失败，不静默退回样例
+ 采集时间: 2026-11-17 19:26:20 +0800 | 环境: macOS / release 二进制
+════════════════════════════════════════════════════════════════
+
+$ env -u ESB_AUDIT_DB_HOST -u OPS_TICKET_TOKEN ./target/release/interface-fault-rca daemon
+
+启动失败: [ConfigMissing] 缺少必需配置或凭据：缺 10 项：ESB_AUDIT_DB_HOST, ESB_AUDIT_DB_USER, ESB_AUDIT_DB_PASSWORD, ESB_AUDIT_DB_NAME, PROM_BASE_URL, PROM_BEARER_TOKEN, ESB_LOG_DIR, APP_LOG_DIR, OPS_TICKET_BASE_URL, OPS_TICKET_TOKEN（均从环境变量读取）。按 .env.example 补齐缺失的环境变量后重启。
+[exit=7]
